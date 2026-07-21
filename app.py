@@ -8,20 +8,26 @@ from llama_index.vector_stores.opensearch import (
     OpensearchVectorClient,
 )
 from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
-from llama_index.llms.openai import OpenAI # Veya Ollama, Anthropic vb.
+# OpenAI yerine Ollama paketini yüklüyoruz
+from llama_index.llms.ollama import Ollama
 
 # ==========================================
 # 1. MODEL VE AYARLARIN YAPILANDIRILMASI
 # ==========================================
 
-# Embedding Modeli (Çok dilli destek için bge-m3 idealdir)
+# Embedding Modeli (Metinleri vektöre dönüştürür)
 Settings.embed_model = HuggingFaceEmbedding(
     model_name="BAAI/bge-m3",
-    device="cuda" # GPU yoksa "cpu" yapabilirsiniz
+    device="cuda"  # GPU yoksa "cpu" yapabilirsiniz
 )
 
-# LLM Ayarı (Örn: OpenAI veya Ollama / Local LLM)
-Settings.llm = OpenAI(model="gpt-4o-mini", temperature=0.1)
+# LLM Ayarı: Ollama üzerinde çalışan Llama 3.1 8B
+Settings.llm = Ollama(
+    model="llama3.1",        # veya "llama3.1:8b" (ollama list çıktısındaki adı)
+    base_url="http://localhost:11434",
+    request_timeout=180.0,   # Büyük yanıtlarda zaman aşımına uğramaması için
+    context_window=8000      # Llama 3.1 geniş bağlam penceresini destekler
+)
 
 # Metin Bölümleme (Chunking) Stratejisi
 Settings.node_parser = SentenceSplitter(
@@ -39,26 +45,22 @@ documents = reader.load_data(file_path="./pollen.pdf")
 # ==========================================
 # 3. OPENSEARCH BAĞLANTISI VE VEKTÖR DEPOSU
 # ==========================================
-# OpenSearch endpoint bilgileri
-opensearch_endpoint = "http://localhost:9200" # veya https URL'iniz
-index_name = "rag_bge_demo"
+opensearch_endpoint = "http://localhost:9200"
+index_name = "rag_bge_llama3"
 
-# BGE-M3 çıktı boyutu 1024'tür (bge-large-en kullanırsanız 1024, bge-base 768'dir)
 client = OpensearchVectorClient(
     endpoint=opensearch_endpoint,
     idx=index_name,
-    dim=1024,
+    dim=1024, # BGE-M3 boyutu
     text_field="content",
-    embedding_field="embedding",
-    # OpenSearch tarafında Hybrid arama aktifse:
-    # search_pipeline="hybrid-search-pipeline" 
+    embedding_field="embedding"
 )
 
 vector_store = OpensearchVectorStore(client)
 storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
 # ==========================================
-# 4. İNDEKS OLUŞTURMA (Indexing)
+# 4. İNDEKS OLUŞTURMA
 # ==========================================
 print("⚡ İndeks oluşturuluyor ve OpenSearch'e aktarılıyor...")
 index = VectorStoreIndex.from_documents(
@@ -68,34 +70,29 @@ index = VectorStoreIndex.from_documents(
 )
 
 # ==========================================
-# 5. RERANKER (BGE-Reranker) TANIMLAMA
+# 5. RERANKER (BGE-Reranker)
 # ==========================================
-# Ilk etapta OpenSearch'ten 10-20 dokuman çekip, Reranker ile en iyi 3 tanesini seçeceğiz.
 reranker = FlagEmbeddingReranker(
     model="BAAI/bge-reranker-large",
-    top_n=3,          # LLM'e gidecek nihai doküman sayısı
-    use_fp16=True     # GPU belleğini optimize etmek için
+    top_n=3,          # Llama 3.1'e gönderilecek en alakalı 3 bölüm
+    use_fp16=True
 )
 
 # ==========================================
-# 6. SORU-CEVAP SORGULAMA MOTORU (Query Engine)
+# 6. SORGULAMA MOTORU
 # ==========================================
 query_engine = index.as_query_engine(
     similarity_top_k=15, # OpenSearch'ten ilk aşamada çekilecek aday sayısı
-    node_postprocessors=[reranker] # Çekilen adayları yeniden sıralayan katman
+    node_postprocessors=[reranker]
 )
 
 # ==========================================
-# 7. SORGULAMA
+# 7. SORU SORMA
 # ==========================================
-query = "Sözleşmedeki fesih şartları ve ceza koşulları nelerdir?"
+query = "Dokümandaki ana konular ve dikkat edilmesi gereken şartlar nelerdir?"
 print(f"\n❓ Soru: {query}\n")
 
 response = query_engine.query(query)
 
-print("🤖 Yanıt:")
+print("🦙 Llama 3.1 Yanıtı:")
 print(response)
-
-print("\n🔍 LLM'e Gönderilen En Alakalı Bağlamlar (Rerank Sonrası):")
-for node in response.source_nodes:
-    print(f"- [Skor: {node.score:.4f}] {node.node.get_content()[:150]}...")
