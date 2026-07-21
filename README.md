@@ -1,4 +1,4 @@
-# 🦙 Production-Ready Local RAG System
+# 🦙 RAGStar
 
 Yüksek doğruluklu (**High Precision**) belge sorgulama ve yanıt üretme amacıyla geliştirilmiş, **tamamen yerel (Local) ve gizlilik odaklı** bir **Retrieval-Augmented Generation (RAG)** sistemidir.
 
