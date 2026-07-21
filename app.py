@@ -34,7 +34,7 @@ Settings.node_parser = SentenceSplitter(
 # ==========================================
 print("📄 PDF belgesi yükleniyor...")
 reader = PyMuPDFReader()
-documents = reader.load_data(file_path="./dokuman.pdf")
+documents = reader.load_data(file_path="./pollen.pdf")
 
 # ==========================================
 # 3. OPENSEARCH BAĞLANTISI VE VEKTÖR DEPOSU
