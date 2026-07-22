@@ -40,7 +40,7 @@ if not os.path.exists(PDF_PATH):
         f"veya RAG_PDF_PATH ortam değişkenini ayarlayın."
     )
 
-print(f"📄 PDF yükleniyor: {PDF_PATH}")
+print(f" PDF yükleniyor: {PDF_PATH}")
 reader = PyMuPDFReader()
 documents = reader.load_data(file_path=PDF_PATH)
 
@@ -78,7 +78,7 @@ storage_context = StorageContext.from_defaults(vector_store=vector_store)
 # bu, restart başına gereksiz işlem + olası duplike doküman anlamına gelir.
 # Üretimde: index_name zaten var mı kontrol edip varsa from_documents yerine
 # doğrudan VectorStoreIndex.from_vector_store(vector_store) kullanın.
-print("⚡ İndeks oluşturuluyor...")
+print(" İndeks oluşturuluyor...")
 index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
 
 reranker = FlagEmbeddingReranker(model="BAAI/bge-reranker-large", top_n=3)
@@ -105,11 +105,11 @@ async def query_endpoint(data: QueryRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Soru boş olamaz.")
 
-    print(f"❓ Gelen Soru: {question}")
+    print(f" Gelen Soru: {question}")
     try:
         response = query_engine.query(question)
     except Exception as exc:
-        print(f"⚠️ Sorgu hatası: {exc}")
+        print(f" Sorgu hatası: {exc}")
         raise HTTPException(
             status_code=502,
             detail="Sorgu işlenirken bir hata oluştu. Ollama/OpenSearch servislerinin çalıştığından emin olun.",
