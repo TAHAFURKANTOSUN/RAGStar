@@ -34,7 +34,7 @@ Settings.llm = Ollama(
 
 Settings.node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
 
-PDF_PATH = os.getenv("RAG_PDF_PATH", "./pollen.pdf")
+PDF_PATH = os.getenv("RAG_PDF_PATH", "./birlesmis.pdf")
 if not os.path.exists(PDF_PATH):
     raise FileNotFoundError(
         f"PDF bulunamadı: {PDF_PATH}. Önce 'python dowloand_data.py' çalıştırın "
