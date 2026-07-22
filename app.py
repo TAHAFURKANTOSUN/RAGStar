@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-
+from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.readers.file import PyMuPDFReader
@@ -14,6 +14,7 @@ from llama_index.llms.ollama import Ollama
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+load_dotenv()
 
 # ==========================================
 # 1. RAG AYARLARI VE İNDEKS KURULUMU
@@ -50,8 +51,8 @@ index_name = "rag_bge_web"
 # OpenSearch güvenlik eklentisi varsayılan olarak açık gelir; kimlik bilgisi
 # verilmezse her istek 401 Unauthorized döner. Kullanıcı adı/şifreyi ortam
 # değişkenlerinden okuyoruz — koda gömmüyoruz.
-opensearch_user = os.getenv("OPENSEARCH_USER", "admin")
-opensearch_password = os.getenv("OPENSEARCH_PASSWORD")
+opensearch_user =os.getenv('OPENSEARCH_USER')
+opensearch_password = os.getenv('OPENSEARCH_PASSWORD')
 if not opensearch_password:
     raise RuntimeError(
         "OPENSEARCH_PASSWORD ortam değişkeni ayarlanmamış. "
