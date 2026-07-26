@@ -97,9 +97,9 @@ Bu proje; gelişmiş metin işleme, hibrit arama (**Hybrid Search**), yeniden s�
 ## 1. Depoyu Klonlayın
 
 ```bash
-git clone https://github.com/KULLANICI_ADI/REPO_ADI.git
+git clone https://github.com/TAHAFURKANTOSUN/RAGStar.git
 
-cd REPO_ADI
+cd RAGStar
 ```
 
 ---
