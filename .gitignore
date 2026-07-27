@@ -3,3 +3,6 @@ pollen.pdf
 dokuman.pdf
 .env
 dowloand_data.py
+# benchmark ciktilari
+benchmark/dataset/
+bench-env/

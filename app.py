@@ -1,4 +1,11 @@
 import os
+import torch
+
+# Limit PyTorch to single-threaded CPU execution to resolve numerical instability (NaNs)
+# caused by OpenMP/MKL concurrency issues in some CPU attention kernels on Windows.
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -7,7 +14,29 @@ from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.readers.file import PyMuPDFReader
+import math
+from typing import List, Union, Optional
+from io import BytesIO
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
+class SafeHuggingFaceEmbedding(HuggingFaceEmbedding):
+    """
+    Subclass of HuggingFaceEmbedding that post-processes generated embedding vectors
+    and replaces any NaN/Inf values with 0.0 to prevent JSON serialization errors
+    when saving to databases like OpenSearch.
+    """
+    def _embed(
+        self,
+        inputs: List[Union[str, BytesIO]],
+        prompt_name: Optional[str] = None,
+    ) -> List[List[float]]:
+        embeddings = super()._embed(inputs, prompt_name=prompt_name)
+        clean_embeddings = []
+        for emb in embeddings:
+            clean_emb = [0.0 if math.isnan(x) or math.isinf(x) else x for x in emb]
+            clean_embeddings.append(clean_emb)
+        return clean_embeddings
+
 from llama_index.vector_stores.opensearch import OpensearchVectorStore, OpensearchVectorClient
 from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 from llama_index.llms.ollama import Ollama
@@ -21,7 +50,7 @@ load_dotenv()
 # ==========================================
 
 # CUDA hatasını önlemek için device="cpu" ayarlı (GPU var ise "cuda" yapabilirsiniz)
-Settings.embed_model = HuggingFaceEmbedding(
+Settings.embed_model = SafeHuggingFaceEmbedding(
     model_name="BAAI/bge-m3",
     device="cpu" 
 )
