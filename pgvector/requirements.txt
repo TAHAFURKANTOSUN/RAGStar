@@ -1,0 +1,5 @@
+# Ana projenin requirements.txt'ine EK olarak kurun:
+#   pip install -r requirements.txt          (proje kokunde)
+#   pip install -r pgvector/requirements.txt
+psycopg[binary]>=3.1.0
+pgvector>=0.2.5

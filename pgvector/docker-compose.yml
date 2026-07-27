@@ -1,0 +1,46 @@
+# pgvector uzantili PostgreSQL.
+#
+#   cd pgvector
+#   docker compose up -d
+#   docker compose logs -f postgres
+#   docker compose down          # durdur (veri kalir)
+#   docker compose down -v       # durdur + veriyi sil
+#
+# Ana projedeki OpenSearch ile ayni anda calisir (farkli portlar).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: contextual-rag-pgvector
+    environment:
+      - POSTGRES_DB=ragbench
+      - POSTGRES_USER=rag
+      - POSTGRES_PASSWORD=ragpass
+      # Benchmark'ta ANN index'i ve sorgu planlayiciyi rahatlatmak icin
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    command:
+      - postgres
+      # HNSW index kurulumu ve arama icin bellek ayarlari
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=64MB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - max_parallel_maintenance_workers=4
+      - -c
+      - random_page_cost=1.1
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragbench"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pgvector-data:

@@ -227,11 +227,72 @@ Parametreler:
 
 ### 5. Sonuçlar
 
-JSON olarak `vectordb_bench/results/` altına yazılır. Görsel karşılaştırma:
+Koşu bitince rapor otomatik basılır:
+
+```
+==========================================================
+  OSSOPENSEARCH BENCHMARK SONUÇLARI
+==========================================================
+  Dataset            : 942 vektör × 1024 boyut (Cosine)
+  Embedding          : nvidia/nv-embedqa-e5-v5
+  Index              : HNSW/faiss  M=16  ef_construction=256  ef_search=100
+  Arama              : k=10
+
+----------------------------------------------------------
+  SERİ  (tek istemci — Qdrant koşunla karşılaştırılabilir)
+----------------------------------------------------------
+  Toplam Süre        : 30.00 saniye
+  Sorgu Hızı (QPS)   : 69.54 sorgu/sn
+  Ortalama Gecikme   : 14.38 ms
+  P95 Gecikme        : 30.59 ms
+  P99 Gecikme        : 31.29 ms
+
+----------------------------------------------------------
+  EŞZAMANLI TEPE  (8 istemci)
+----------------------------------------------------------
+  Sorgu Hızı (QPS)   : 412.77 sorgu/sn
+  ...
+```
+
+Sonradan tekrar üretmek için:
 
 ```powershell
-init_bench      # Streamlit arayüzünü açar
+python benchmark\report.py                    # en son koşu
+python benchmark\report.py --all              # tüm koşular, tablo
+python benchmark\report.py --markdown rapor.md
 ```
+
+Ham JSON `vectordb_bench/results/` altında; Streamlit arayüzü için `init_bench`.
+
+#### Neden iki ayrı QPS satırı var
+
+VectorDBBench'in manşet `qps` değeri **eşzamanlı tepe** QPS'tir — birden çok
+istemci paralel sorgu atarken ulaşılan en yüksek verim. Tek istemcili bir
+Qdrant koşusundan gelen QPS ise **seri** ölçümdür (QPS × ortalama gecikme = 1).
+Bu ikisi farklı şeyleri ölçer; doğrudan karşılaştırmak yanıltıcıdır.
+
+Rapor `concurrency=1` satırını ayrı gösterir — Qdrant sonucunla birebir
+karşılaştırılabilecek olan budur. Eşzamanlı tepe satırı ise OpenSearch'ün
+yük altındaki kapasitesini gösterir.
+
+#### Bellek ölçümü
+
+VectorDBBench RAM ölçmez. `os_memstat.py` koşu öncesi ve sonrası OpenSearch'ten
+`_nodes/stats` ve `_plugins/_knn/stats` çeker; run script bunu otomatik yapar.
+
+Raporlanan dört satırın anlamı:
+
+| Satır | Ne | Yorum |
+| --- | --- | --- |
+| kNN Graph Belleği | HNSW graph'ının native bellek kullanımı | **Asıl sayı bu.** Vektör indeksinin gerçek maliyeti |
+| Segment Belleği | Lucene segment yapıları | OpenSearch 2.x'te 0 gelebilir (alan kaldırıldı) |
+| JVM Heap Farkı | Heap kullanım değişimi | GC'ye bağlı dalgalanır, tek başına güvenilmez |
+| Disk (store) Artışı | İndeksin diskteki boyutu | Bellek değil, ama ölçek fikri verir |
+
+Qdrant raporundaki "Ek RAM Tüketimi: 4.75 MB" büyük olasılıkla **istemci
+sürecinin RSS artışı** — yani vektör DB'nin bellek maliyetini değil, Python
+istemcisinin kendi kullanımını ölçüyor. Bu iki sayıyı yan yana koyarken
+dikkatli ol; aynı şeyi ölçmüyorlar.
 
 ---
 
@@ -278,7 +339,10 @@ en az müdahaleden en fazlasına:
 
 | Dosya | Ne yapar | Hangi ortamda |
 | --- | --- | --- |
+| `check_endpoint.py` | Embedding endpoint'ini tek çağrıda doğrular | RAG (`env`) |
 | `build_dataset.py` | PDF → chunk → embed → parquet + exact ground truth | RAG (`env`) |
 | `patch_vdbb.py` | VectorDBBench'in iki OpenSearch hatasını yamalar | bench |
 | `install_dataset.py` | Parquet'leri yerine kopyalar, `custom_case.json` yazar | bench |
-| `run_opensearch.ps1` / `.sh` | Benchmark'ı çalıştırır | bench |
+| `run_opensearch.ps1` / `.sh` | Benchmark'ı çalıştırır, bellek yakalar, raporu basar | bench |
+| `os_memstat.py` | OpenSearch bellek anlık görüntüsü alır | bench |
+| `report.py` | Sonuç JSON'ını okunabilir rapora çevirir | bench |

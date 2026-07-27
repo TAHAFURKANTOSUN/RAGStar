@@ -91,6 +91,22 @@ run_bench() {
   echo
 }
 
+# VectorDBBench RAM olcmez; kosu oncesi/sonrasi OpenSearch'ten biz cekiyoruz.
+mem_snapshot() {
+  local label="$1" extra=()
+  [[ "$OSS_OPENSEARCH_USE_SSL" == "false" ]] && extra+=("--no-ssl")
+  python3 "$HERE/os_memstat.py" --host "$OS_HOST" --port "$OS_PORT" \
+    --out "$HERE/dataset/mem_${label}.json" --label "$label" "${extra[@]}"
+}
+
+# Bagli degilsek benchmark'i hic baslatma.
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  if ! mem_snapshot before; then
+    echo "OpenSearch'e ulasilamiyor. Yukaridaki kontrol listesine bak (OSS_OPENSEARCH_USE_SSL=false gerekebilir)."
+    exit 1
+  fi
+fi
+
 if [[ "${SWEEP:-0}" == "1" ]]; then
   for m in 8 16 32; do
     for efs in 32 64 128 256; do
@@ -101,5 +117,16 @@ else
   run_bench "$M_DEFAULT" "$EF_CONSTRUCTION" "$EF_SEARCH_DEFAULT" "os-m${M_DEFAULT}-efs${EF_SEARCH_DEFAULT}"
 fi
 
-echo "Sonuclar: vectordb_bench/results/ altinda JSON."
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  mem_snapshot after
+  echo
+  if [[ "${SWEEP:-0}" == "1" ]]; then
+    python3 "$HERE/report.py" --all
+  else
+    python3 "$HERE/report.py"
+  fi
+fi
+
+echo
+echo "Ham sonuclar: vectordb_bench/results/ altinda JSON."
 echo "Streamlit arayuzu:  init_bench"

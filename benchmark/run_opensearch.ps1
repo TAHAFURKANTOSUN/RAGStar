@@ -126,6 +126,28 @@ function Invoke-Bench {
     Write-Host ""
 }
 
+# --- Bellek olcumu: VectorDBBench RAM olcmez, kosu oncesi/sonrasi biz cekiyoruz ---
+function Invoke-MemSnapshot {
+    param([string]$label)
+    $memArgs = @(
+        (Join-Path $PSScriptRoot "os_memstat.py")
+        "--host", $OpenSearchHost, "--port", $Port
+        "--out", (Join-Path $PSScriptRoot "dataset\mem_$label.json")
+        "--label", $label
+    )
+    if ($NoSsl) { $memArgs += "--no-ssl" }
+    & python @memArgs
+}
+
+if (-not $DryRun) {
+    # Bagli degilsek benchmark'i hic baslatma; dakikalarca kosup sifir
+    # metriklerle dusmesindense burada dur.
+    Invoke-MemSnapshot "before"
+    if ($LASTEXITCODE -ne 0) {
+        throw "OpenSearch'e ulasilamiyor. Yukaridaki kontrol listesine bak. (-NoSsl gerekebilir)"
+    }
+}
+
 if ($Sweep) {
     # HNSW parametre taramasi: recall/QPS egrisini cikarir.
     foreach ($m in @(8, 16, 32)) {
@@ -137,5 +159,16 @@ if ($Sweep) {
     Invoke-Bench -m $M -efc $EfConstruction -efs $EfSearch -label "os-m$M-efs$EfSearch"
 }
 
-Write-Host "Sonuclar: vectordb_bench/results/ altinda JSON olarak duruyor." -ForegroundColor Green
-Write-Host "Streamlit arayuzunde gormek icin:  init_bench" -ForegroundColor Green
+if (-not $DryRun) {
+    Invoke-MemSnapshot "after"
+    Write-Host ""
+    if ($Sweep) {
+        & python (Join-Path $PSScriptRoot "report.py") --all
+    } else {
+        & python (Join-Path $PSScriptRoot "report.py")
+    }
+}
+
+Write-Host ""
+Write-Host "Ham sonuclar: vectordb_bench/results/ altinda JSON." -ForegroundColor Green
+Write-Host "Streamlit arayuzu:  init_bench" -ForegroundColor Green

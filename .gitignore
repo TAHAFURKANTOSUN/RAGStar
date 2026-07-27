@@ -6,3 +6,5 @@ dowloand_data.py
 # benchmark ciktilari
 benchmark/dataset/
 bench-env/
+benchmark/logs/
+logs/
