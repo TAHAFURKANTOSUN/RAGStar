@@ -318,7 +318,7 @@ def main() -> None:
     p = argparse.ArgumentParser(
         description="VectorDBBench custom dataset üretici (DeneyselRAG)"
     )
-    p.add_argument("--pdf-dir", type=Path, default=ROOT / "docs", help="PDF klasörü")
+    p.add_argument("--pdf-dir", type=Path, default=ROOT / "docsnvidia", help="PDF klasörü")
     p.add_argument(
         "--extra-pdf",
         type=Path,
