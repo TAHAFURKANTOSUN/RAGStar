@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -31,7 +32,12 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--src", type=Path, default=ROOT / "benchmark" / "dataset")
     p.add_argument("--name", default="deneysel", help="Dataset adı (klasör: küçük harf)")
-    p.add_argument("--dataset-dir", default="deneysel_bge_m3", help="Alt klasör adı")
+    p.add_argument(
+        "--dataset-dir",
+        default=None,
+        help="Alt klasör adı. Verilmezse embed modelinden türetilir "
+        "(orn. deneysel_nv_embedqa_e5_v5).",
+    )
     p.add_argument(
         "--dataset-local-dir",
         type=Path,
@@ -45,6 +51,12 @@ def main() -> None:
     if not meta_path.exists():
         sys.exit(f"HATA: {meta_path} yok. Önce build_dataset.py çalıştır.")
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Klasör adını embed modelinden türet: farklı modellerin dataset'leri
+    # birbirinin üstüne yazmasın.
+    if not args.dataset_dir:
+        slug = re.sub(r"[^a-z0-9]+", "_", meta["embed_model"].lower()).strip("_")
+        args.dataset_dir = f"{args.name.lower()}_{slug}"
 
     missing = [f for f in REQUIRED if not (args.src / f).exists()]
     if missing:
@@ -118,6 +130,11 @@ def main() -> None:
     custom_config_path.write_text(
         json.dumps(existing, indent=4, ensure_ascii=False), encoding="utf-8"
     )
+
+    # Çalıştırma scriptleri bu iki alanı meta'dan okuyor — geri yaz.
+    meta["dataset_name"] = args.name
+    meta["dataset_dir"] = args.dataset_dir
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
     pkg_dir = Path(vectordb_bench.__file__).parent
     print()

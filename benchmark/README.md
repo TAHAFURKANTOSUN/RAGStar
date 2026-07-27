@@ -33,17 +33,21 @@ docs'un birleştirilmiş hali; 144 sayfa = docs toplamı). Tekil içerik:
 ~578.000 karakter  ≈  145.000 token
 ```
 
-Bu, chunk boyutuna göre şu kadar vektör eder:
+Bu, chunk boyutuna göre şu kadar vektör eder (128 için ölçülmüş, diğerleri tahmin):
 
-| chunk_size | yaklaşık vektör sayısı |
+| chunk_size | vektör sayısı |
 | --- | --- |
-| 512 (app.py ayarı) | ~310 |
-| 256 | ~620 |
-| **128 (bu benchmark'ın varsayılanı)** | **~1.200** |
+| 512 (app.py ayarı) | ~480 |
+| 256 | ~960 |
+| **128 (bu benchmark'ın varsayılanı)** | **1.936 (ölçüldü)** |
 
-**1.200 vektör, ANN benchmark'ı için küçüktür.** Şu anlama gelir:
+13 PDF katkı veriyor; `pollen.pdf` 14 karakterlik boş bir dosya olduğu için
+otomatik eleniyor. Dedupe, `birlesmis.pdf` eklensin ya da eklenmesin aynı
+metnin iki kez sayılmasını engelliyor.
 
-- `k=100` ile recall ölçmek anlamsız — korpusun %8'ini getiriyor olursun.
+**~1.900 vektör, ANN benchmark'ı için küçüktür.** Şu anlama gelir:
+
+- `k=100` ile recall ölçmek anlamsız — korpusun %5'ini getiriyor olursun.
   Bu yüzden varsayılan `k=10`.
 - HNSW bu ölçekte neredeyse her zaman recall≈1.0 verir; parametre taraması
   (`-Sweep`) düz bir çizgi çıkarabilir. Ayrım görmek için ef_search'ü
@@ -85,30 +89,66 @@ pip install "vectordb-bench[opensearch]"
 `build_dataset.py` PDF'leri chunk'lar, embed eder, train/test ayırır ve
 **kesin (exact) kNN ile ground truth** hesaplar.
 
-Cordatus veya OpenAI-uyumlu bir embedding endpoint'i ile:
+Varsayılan embedding modeli **`nvidia/nv-embedqa-e5-v5`**. NVIDIA'nın
+barındırdığı API ile:
 
 ```powershell
 .\env\Scripts\activate
-$env:EMBED_BASE_URL = "https://<cordatus-host>/v1"
-$env:EMBED_API_KEY  = "<key>"
-python benchmark\build_dataset.py --backend api --embed-model bge-m3
+$env:EMBED_BASE_URL = "https://integrate.api.nvidia.com/v1"
+$env:EMBED_API_KEY  = "nvapi-..."
+python benchmark\build_dataset.py
 ```
 
-Lokal bge-m3 ile (app.py ile birebir aynı model, CPU'da birkaç dakika):
+Kendi NIM konteynerini çalıştırıyorsan (Cordatus üzerinden de olabilir):
 
 ```powershell
-python benchmark\build_dataset.py --backend local
+python benchmark\build_dataset.py --embed-base-url http://localhost:8000/v1
+```
+
+Lokal bge-m3 ile (app.py ile birebir aynı model, simetrik):
+
+```powershell
+python benchmark\build_dataset.py --backend local --no-input-type
 ```
 
 Faydalı bayraklar:
 
 ```
---chunk-size 128        varsayılan; 64 yaparsan ~2.400 vektör
+--chunk-size 128        varsayılan; 64 yaparsan ~3.800 vektör
 --num-queries 100       sorgu seti büyüklüğü
 --gt-k 100              ground truth'ta saklanan komşu sayısı
---metric cosine         bge-m3 kosinüs için eğitildi
+--metric cosine         E5 ve bge ailesi kosinüs için eğitildi
+--truncate END          512 token sınırını aşan girdi nasıl kesilsin
+--no-input-type         simetrik modeller için input_type göndermeyi kapat
+--batch-size 32         endpoint 4xx dönerse küçült
 --device cuda           lokal backend'de GPU
 ```
+
+#### nv-embedqa-e5-v5 hakkında bilinmesi gerekenler
+
+**Asimetrik model.** `input_type` alanı zorunlu: dokümanlar `passage`,
+sorgular `query` ile kodlanır. Bu yüzden script train/test ayrımını
+embedding'den **önce** yapar — pasajlar ve sorgular ayrı çağrılarda,
+doğru `input_type` ile embed edilir. `--no-input-type` ile bu alanı
+kapatırsan endpoint isteği 400 ile reddeder (ya da simetrik bir modelde
+sessizce kalite kaybı yaşarsın).
+
+**Boyut 1024** — bge-m3 ile aynı. Yani OpenSearch index `dim` ayarını
+değiştirmen gerekmiyor. Ama vektör uzayları uyumsuz: modeli değiştirirsen
+`app.py`'nin indeksini **sıfırdan yeniden oluşturman** gerekir, aksi halde
+eski bge-m3 vektörleriyle yeni E5 sorguları karşılaştırılır ve sonuçlar
+anlamsız çıkar.
+
+**Maksimum 512 token.** Benchmark'ın varsayılan `--chunk-size 128` değeri
+rahatça altında. Ama `app.py` şu an 512 token chunk kullanıyor — modeli
+oraya taşırsan sınırın tam dibindesin, `truncate` devreye girebilir.
+
+**Yalnızca İngilizce.** `docs/` altındaki makaleler İngilizce olduğu için
+korpus tarafında sorun yok. Ancak `README.md`'de projenin Türkçe desteği
+bge-m3'ün çok dilli olmasına dayanıyordu — E5'e geçersen **Türkçe sorgular
+bozulur.** Çok dilli kalması gerekiyorsa `nvidia/llama-3.2-nv-embedqa-1b-v2`
+(2048 boyut, 8192 token) veya bge-m3'te kalmak daha uygun.
+Not: bu son model 2048 boyutlu — OpenSearch index `dim`'ini değiştirmen gerekir.
 
 Çıktı `benchmark/dataset/` altına düşer:
 `train.parquet`, `test.parquet`, `neighbors.parquet`, `chunks.jsonl`,
@@ -154,8 +194,13 @@ $env:DATASET_LOCAL_DIR = "C:\vdbb\dataset"
 python benchmark\install_dataset.py
 ```
 
+Klasör adı embed modelinden türetilir (`deneysel_nvidia_nv_embedqa_e5_v5`),
+böylece farklı modellerle ürettiğin dataset'ler birbirinin üstüne yazmaz.
+
 Bu ayrıca `vectordb_bench/custom/custom_case.json` dosyasına case tanımını
-yazar; Streamlit arayüzünden koşmak istersen orada görünür.
+yazar (Streamlit arayüzünden koşmak istersen orada görünür) ve çözülmüş
+klasör adını `dataset_meta.json`'a geri yazar — çalıştırma scriptleri oradan
+okur.
 
 ### 4. Çalıştır
 
@@ -202,6 +247,11 @@ init_bench      # Streamlit arayüzünü açar
 | `KeyError` / gt boyut hatası | `--k` değeri `gt_k`'dan büyük |
 | Recall hep 1.0 | Korpus küçük — beklenen. `-EfSearch 16` gibi agresif değerlerle ayrım aranabilir |
 | Embedding isteği timeout | `--batch-size 8` ile küçült |
+| `HTTP 400: input_type must be one of...` | `--no-input-type` kullanma; nv-embedqa-e5-v5 asimetrik |
+| `HTTP 401` / `403` embedding'de | `EMBED_API_KEY` yanlış veya süresi dolmuş (`nvapi-...`) |
+| `HTTP 404: model ... not found` | Model adı sunucudakiyle uyuşmuyor. `curl <base>/v1/models` ile kontrol et |
+| Boyut uyarısı (beklenen 1024, gelen X) | Endpoint farklı bir model sunuyor; OpenSearch index `dim`'ini de güncelle |
+| `dataset_name/dataset_dir meta'da yok` | `install_dataset.py` çalıştırılmamış |
 
 ---
 
@@ -210,7 +260,7 @@ init_bench      # Streamlit arayüzünü açar
 Recall eğrisi anlamlı olsun istiyorsan korpusu büyütmen gerekir. Sıra ile
 en az müdahaleden en fazlasına:
 
-1. **`--chunk-size 64`** → ~2.400 vektör. Ucuz ama hâlâ küçük.
+1. **`--chunk-size 64`** → ~3.800 vektör. Ucuz ama hâlâ küçük.
 2. **Aynı alandan açık korpus ekle.** `docs/` alerji/immünoloji ağırlıklı;
    PubMed abstract'ları veya BEIR'in `nfcorpus`/`scifact` setleri doğal bir
    genişletme olur. `build_dataset.py`'ye bir loader eklemek yeterli —

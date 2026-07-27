@@ -19,8 +19,8 @@ param(
     [string] $OpenSearchHost = "localhost",
     [int]    $Port           = 9200,
     [switch] $NoSsl,                       # OpenSearch güvenlik eklentisi kapalıysa
-    [string] $DatasetName    = "deneysel",
-    [string] $DatasetDir     = "deneysel_bge_m3",
+    [string] $DatasetName    = "",     # bos ise dataset_meta.json'dan okunur
+    [string] $DatasetDir     = "",     # bos ise dataset_meta.json'dan okunur
     [int]    $K              = 10,
     [int]    $M              = 16,
     [int]    $EfConstruction = 256,
@@ -41,6 +41,12 @@ if (-not (Test-Path $metaPath)) {
     throw "dataset_meta.json yok. Once: python benchmark/build_dataset.py"
 }
 $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
+
+if (-not $DatasetName) { $DatasetName = $meta.dataset_name }
+if (-not $DatasetDir)  { $DatasetDir  = $meta.dataset_dir }
+if (-not $DatasetName -or -not $DatasetDir) {
+    throw "dataset_name/dataset_dir meta'da yok. Once: python benchmark/install_dataset.py"
+}
 
 # --- .env'den OpenSearch kimlik bilgileri ---
 $envFile = Join-Path $root ".env"

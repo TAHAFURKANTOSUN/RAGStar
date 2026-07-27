@@ -26,12 +26,18 @@ OPENSEARCH_USER="${OPENSEARCH_USER:-admin}"
 export OSS_OPENSEARCH_USE_SSL="${OSS_OPENSEARCH_USE_SSL:-true}"
 export OSS_OPENSEARCH_VERIFY_CERTS="${OSS_OPENSEARCH_VERIFY_CERTS:-false}"
 
-jqv() { python3 -c "import json,sys;print(json.load(open('$META'))['$1'])"; }
+jqv() {
+  python3 -c "import json,sys
+m=json.load(open('$META'))
+if '$1' not in m:
+    sys.stderr.write(\"HATA: dataset_meta.json'da '$1' yok. Once: python benchmark/install_dataset.py\n\"); sys.exit(1)
+print(m['$1'])"
+}
 SIZE=$(jqv size); DIM=$(jqv dim); METRIC=$(jqv metric_type); GT_K=$(jqv gt_k)
 METRIC_LOWER=$(echo "$METRIC" | tr '[:upper:]' '[:lower:]')
 
-DATASET_NAME="${DATASET_NAME:-deneysel}"
-DATASET_DIR="${DATASET_DIR:-deneysel_bge_m3}"
+DATASET_NAME="${DATASET_NAME:-$(jqv dataset_name)}"
+DATASET_DIR="${DATASET_DIR:-$(jqv dataset_dir)}"
 K="${K:-10}"
 M_DEFAULT="${M:-16}"
 EF_CONSTRUCTION="${EF_CONSTRUCTION:-256}"
