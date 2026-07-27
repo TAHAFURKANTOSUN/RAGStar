@@ -111,7 +111,7 @@ cd RAGStar
 ```bash
 python -m venv env
 
-.\venv\Scripts\activate
+.\env\Scripts\activate
 ```
 
 ### Linux / macOS
